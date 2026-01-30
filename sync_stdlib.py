@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Sync mojo stdlib and docs from modular submodule to mojo/ directory."""
 
+import argparse
 import shutil
 import subprocess
 import sys
@@ -20,11 +21,27 @@ def run_command(cmd: list[str], check: bool = True) -> subprocess.CompletedProce
 
 def main():
     """Main sync function."""
+    parser = argparse.ArgumentParser(description="Sync mojo stdlib and docs.")
+    parser.add_argument(
+        "--skip-submodule-update",
+        action="store_true",
+        help="Skip updating the modular submodule.",
+    )
+    parser.add_argument(
+        "--skip-commit",
+        action="store_true",
+        help="Skip creating a git commit.",
+    )
+    args = parser.parse_args()
+
     repo_root = Path(__file__).parent.resolve()
-    
+
     # Step 1: Update submodule
-    print("Step 1: Updating git submodule...")
-    run_command(["git", "submodule", "update", "--remote", "--merge"])
+    if args.skip_submodule_update:
+        print("Step 1: Skipping submodule update.")
+    else:
+        print("Step 1: Updating git submodule...")
+        run_command(["git", "submodule", "update", "--remote", "--merge"])
     
     # Step 2: Copy directories
     print("\nStep 2: Copying directories...")
@@ -60,19 +77,36 @@ def main():
     print(f"Copying {source_docs} to {dest_docs}...")
     shutil.copytree(source_docs, dest_docs)
     
-    # Step 3: Make git commit
-    print("\nStep 3: Making git commit...")
-    
+    # Step 3: Create zip artifact
+    print("\nStep 3: Creating zip artifact...")
+    zip_path = repo_root / "mojo-stdlib.zip"
+    if zip_path.exists():
+        zip_path.unlink()
+    shutil.make_archive(
+        base_name=str(zip_path.with_suffix("")),
+        format="zip",
+        root_dir=str(repo_root / "mojo"),
+        base_dir="stdlib",
+    )
+
+    if args.skip_commit:
+        print("Skipping git commit.")
+        print("\nSync complete!")
+        return
+
+    # Step 4: Make git commit
+    print("\nStep 4: Making git commit...")
+
     # Check if there are changes to commit
-    run_command(["git", "add", "mojo/stdlib", "mojo/docs"], check=False)
-    
+    run_command(["git", "add", "mojo/stdlib", "mojo/docs", "mojo-stdlib.zip"], check=False)
+
     result = run_command(["git", "status", "--porcelain"], check=False)
     if not result.stdout.strip():
         print("No changes to commit.")
         return
-    
+
     run_command(["git", "commit", "-m", "Sync stdlib and docs from modular submodule"])
-    
+
     print("\nSync complete!")
 
 
