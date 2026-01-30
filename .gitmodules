@@ -1,0 +1,3 @@
+[submodule "modular"]
+	path = modular
+	url = https://github.com/modular/modular/
